@@ -70,7 +70,7 @@ export class CommonGateway implements OnGatewayConnection, OnGatewayDisconnect{
   @SubscribeMessage('joinchat')
   async handleJoinRoom(client : Socket ,payload: { newChatRoomId: string, userId: string }) {
     // 1. 기존 채팅방 정보 가져오기
-    
+
     const currentRooms = Array.from(client.rooms); // 현재 참여 중인 모든 방
     console.log(currentRooms, "현재 참여중인 모든 방");
     const currentChatRoomId = currentRooms.find(room => room !== client.id); // Socket ID 제외
@@ -81,7 +81,7 @@ export class CommonGateway implements OnGatewayConnection, OnGatewayDisconnect{
     if (currentChatRoomId) {
       client.leave(currentChatRoomId); // 기존 방 떠나기
     }
-  
+
     // 3. 새 채팅방 참여
     client.join(newChatRoomId);
     console.log(newChatRoomId, "새롭게 참여할 채팅방 정보");
@@ -129,7 +129,7 @@ export class CommonGateway implements OnGatewayConnection, OnGatewayDisconnect{
       // 3. (존재하지 않는 경우)
       //                3) 해당 socketID(친구)에게           db에 꽂아야함"offline_notice_message")
 
-    } catch (error) { 
+    } catch (error) {
       logger.error('메시지 전송 실패:', error);
       client.emit('error', '메시지 전송에 실패했습니다.');
     }
