@@ -26,9 +26,21 @@ export class CommonRepository {
 
     const newFriend: Friend = {
       friend: friend._id,
-      chatRoomId: newChatRoom._id, // 새로운 채팅방 ID 추가
+      chatRoomId: newChatRoom._id,
       newMessage: false,
     }
+
+    const newFriendForFriend: Friend = {
+      friend: userId,
+      chatRoomId: newChatRoom._id,
+      newMessage: false,
+    }
+    
+    await this.userModel.findByIdAndUpdate(
+      friendId,
+      { $push: { friends: newFriendForFriend } },
+      { new: true },
+    )
 
     return await this.userModel
       .findByIdAndUpdate(
