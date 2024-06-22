@@ -1,4 +1,4 @@
-import { Prop, Schema } from '@nestjs/mongoose'
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import { Types } from 'mongoose'
 
 export enum NotificationTypes {
@@ -8,9 +8,10 @@ export enum NotificationTypes {
 
 @Schema({ timestamps: true })
 export class Notification {
-  @Prop({ type: Types.ObjectId })
+  @Prop({ type: Types.ObjectId, required: true, ref: 'User' })
   from: Types.ObjectId
 
   @Prop({ type: String, enum: NotificationTypes })
   notificationType: string
 }
+export const NotificationSchema = SchemaFactory.createForClass(Notification)
