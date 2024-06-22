@@ -16,7 +16,7 @@ export class CommonRepository {
     return await this.userModel.findById(userId, { friends: 1 })
   }
 
-  async addFriends(data: AddFriendDto): Promise<User> {
+  async addFriend(data: AddFriendDto): Promise<User> {
     const { userId, friendId } = data
     const friend = await this.userModel.findById(friendId)
     if (!friend) throw new Error('없는 유저랍니다.')
