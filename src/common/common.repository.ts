@@ -15,12 +15,8 @@ export class CommonRepository {
     private readonly notificationModel: Model<Notification>,
   ) {}
 
-  async getNotification(userId: Types.ObjectId): Promise<Notification[]> {
-
-    const user = await this.userModel.findById(userId).populate('notifications')
-    console.log(user.notifications)
-
-    return
+  async getNotification(userId: Types.ObjectId): Promise<Types.ObjectId[]> {
+    return (await this.userModel.findById(userId)).notifications
   }
 
   async getFriends(userId: Types.ObjectId): Promise<ObjectId[]> {
