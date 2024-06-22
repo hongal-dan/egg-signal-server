@@ -1,15 +1,39 @@
 import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
-import { User } from '../entities/user.entity'
+import { User, Friend } from '../entities/user.entity'
 import { Model, Types, ObjectId } from 'mongoose'
+import { AddFriendDto } from './dto/request/add-friend.dto'
+import { ChatRoom } from '../entities/chat-room.entity'
 
 @Injectable()
 export class CommonRepository {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
+    @InjectModel(ChatRoom.name) private readonly chatRoomModel: Model<ChatRoom>,
   ) {}
 
   async getFriends(userId: Types.ObjectId): Promise<ObjectId[]> {
     return await this.userModel.findById(userId, { friends: 1 })
+  }
+
+  async addFriends(data: AddFriendDto): Promise<User> {
+    const { userId, friendId } = data
+    const friend = await this.userModel.findById(friendId)
+    if (!friend) throw new Error('없는 유저랍니다.')
+
+    const newChatRoom = new this.chatRoomModel({ chats: [] })
+    await newChatRoom.save()
+
+    const newFriend: Friend = {
+      friend: friend._id,
+      chatRoomId: newChatRoom._id, // 새로운 채팅방 ID 추가
+      newMessage: false,
+    }
+
+    return await this.userModel.findByIdAndUpdate(
+      userId,
+      { $push: { friends: newFriend } },
+      { new: true },
+    )
   }
 }
