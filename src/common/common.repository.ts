@@ -27,6 +27,21 @@ export class CommonRepository {
     return await this.userModel.findById(userId, { friends: 1 })
   }
 
+  async markFriendNotification(data: AddFriendDto): Promise<Notification> {
+    const { userId, friendId } = data
+    const notification = new this.notificationModel({
+      from: userId,
+      notificationType: 'FRIEND',
+    })
+
+    await this.userModel.findByIdAndUpdate(friendId, {
+      $push: { notifications: notification._id },
+    })
+
+    await notification.save()
+    return notification
+  }
+
   async acceptFriend(data: AddFriendDto): Promise<User> {
     const { userId, friendId } = data
     const friend = await this.userModel.findById(friendId)
