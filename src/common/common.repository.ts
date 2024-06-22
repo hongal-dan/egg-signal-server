@@ -15,12 +15,16 @@ export class CommonRepository {
     private readonly notificationModel: Model<Notification>,
   ) {}
 
-  async getNotification(userId: Types.ObjectId): Promise<Types.ObjectId[]> {
+  async getNotification(userId: Types.ObjectId): Promise<Notification[]> {
     await this.userModel.findByIdAndUpdate(userId, {
       $set: { newNotification: false },
     })
+    //모두 objId로 처리하는게 맞나 생각해보기
+    const user = await this.userModel
+      .findById(userId)
+      .populate<{ notifications: Notification[] }>('notifications') // populate 적용
 
-    return (await this.userModel.findById(userId)).notifications
+    return user.notifications
   }
 
   async getFriends(userId: Types.ObjectId): Promise<ObjectId[]> {
