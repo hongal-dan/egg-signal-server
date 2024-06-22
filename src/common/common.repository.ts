@@ -16,6 +16,10 @@ export class CommonRepository {
   ) {}
 
   async getNotification(userId: Types.ObjectId): Promise<Types.ObjectId[]> {
+    await this.userModel.findByIdAndUpdate(userId, {
+      $set: { newNotification: false },
+    })
+
     return (await this.userModel.findById(userId)).notifications
   }
 
