@@ -31,11 +31,12 @@ export class CommonRepository {
     return await this.userModel.findById(userId, { friends: 1 })
   }
 
-  async markFriendNotification(data: AddFriendDto): Promise<Notification> {
+  //노티.타입 으로 나눠지는데 렌더링할때 나눠서 하나? 
+  async markNotification(data: AddFriendDto): Promise<Notification> {
     const { userId, friendId } = data
     const notification = new this.notificationModel({
       from: userId,
-      notificationType: 'FRIEND',
+      notificationType: `${data.type}`,
     })
 
     await this.userModel.findByIdAndUpdate(friendId, {
