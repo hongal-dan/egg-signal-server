@@ -47,6 +47,18 @@ export class CommonRepository {
     const friend = await this.userModel.findById(friendId)
     if (!friend) throw new Error('없는 유저랍니다.')
 
+    await this.userModel.findByIdAndUpdate(
+      userId,
+      {
+        $pull: {
+          notifications: {
+            sender: friendId,
+          },
+        },
+      },
+      { new: true },
+    )
+
     const newChatRoom = new this.chatRoomModel({ chats: [] })
     await newChatRoom.save()
 
