@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { User, Friend } from '../entities/user.entity'
 import { Model, Types, ObjectId } from 'mongoose'
-import { AddFriendDto } from './dto/request/add-friend.dto'
+import { AddFriendDto } from './dto/request/notification.dto'
 import { ChatRoom } from '../entities/chat-room.entity'
 import { Notification } from '../entities/notification.entity'
 
