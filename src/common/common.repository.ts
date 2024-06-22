@@ -4,13 +4,24 @@ import { User, Friend } from '../entities/user.entity'
 import { Model, Types, ObjectId } from 'mongoose'
 import { AddFriendDto } from './dto/request/add-friend.dto'
 import { ChatRoom } from '../entities/chat-room.entity'
+import { Notification } from '../entities/notification.entity'
 
 @Injectable()
 export class CommonRepository {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(ChatRoom.name) private readonly chatRoomModel: Model<ChatRoom>,
+    @InjectModel(Notification.name)
+    private readonly notificationModel: Model<Notification>,
   ) {}
+
+  async getNotification(userId: Types.ObjectId): Promise<Notification[]> {
+
+    const user = await this.userModel.findById(userId).populate('notifications')
+    console.log(user.notifications)
+
+    return
+  }
 
   async getFriends(userId: Types.ObjectId): Promise<ObjectId[]> {
     return await this.userModel.findById(userId, { friends: 1 })
@@ -35,7 +46,7 @@ export class CommonRepository {
       chatRoomId: newChatRoom._id,
       newMessage: false,
     }
-    
+
     await this.userModel.findByIdAndUpdate(
       friendId,
       { $push: { friends: newFriendForFriend } },
