@@ -30,10 +30,12 @@ export class CommonRepository {
       newMessage: false,
     }
 
-    return await this.userModel.findByIdAndUpdate(
-      userId,
-      { $push: { friends: newFriend } },
-      { new: true },
-    )
+    return await this.userModel
+      .findByIdAndUpdate(
+        userId,
+        { $push: { friends: newFriend } },
+        { new: true },
+      )
+      .lean()
   }
 }
