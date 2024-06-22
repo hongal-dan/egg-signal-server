@@ -33,10 +33,10 @@ export class CommonRepository {
 
   //노티.타입 으로 나눠지는데 렌더링할때 나눠서 하나?
   async markNotification(data: AddFriendDto): Promise<Notification> {
-    const { userId, friendId } = data
+    const { userId, friendId, type } = data
     const notification = new this.notificationModel({
       from: userId,
-      notificationType: `${data.type}`,
+      notificationType: type,
     })
 
     await this.userModel.findByIdAndUpdate(friendId, {
