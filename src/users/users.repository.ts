@@ -11,7 +11,10 @@ export class UsersRepository {
   ) {}
 
   async findOne(userId: Types.ObjectId): Promise<ResGetUserDto> {
-    return await this.userModel.findById(userId, { password: 0 }).lean()
+    return await this.userModel
+      .findById(userId)
+      .select('id nickname gender avatar newNotification friends')
+      .lean()
   }
 
   async updateAvatar(filter: object, avatar: object): Promise<User> {
