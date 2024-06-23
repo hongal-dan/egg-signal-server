@@ -22,7 +22,7 @@ export class CommonRepository {
     //모두 objId로 처리하는게 맞나 생각해보기
     const user = await this.userModel
       .findById(userId)
-      .populate<{ notifications: Notification[] }>('notifications') // populate 적용
+      .populate<{ notifications: Notification[] }>('notifications').lean() // populate 적용
 
     return user.notifications
   }
