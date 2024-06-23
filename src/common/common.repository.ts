@@ -5,6 +5,7 @@ import { Model, Types, ObjectId } from 'mongoose'
 import { AddFriendDto } from './dto/request/notification.dto'
 import { ChatRoom } from '../entities/chat-room.entity'
 import { Notification } from '../entities/notification.entity'
+import { sensitiveHeaders } from 'http2'
 
 @Injectable()
 export class CommonRepository {
@@ -22,7 +23,8 @@ export class CommonRepository {
     //모두 objId로 처리하는게 맞나 생각해보기
     const user = await this.userModel
       .findById(userId)
-      .populate<{ notifications: Notification[] }>('notifications').lean() // populate 적용
+      .populate<{ notifications: Notification[] }>('notifications')
+      .lean() // populate 적용
 
     return user.notifications
   }
@@ -52,6 +54,9 @@ export class CommonRepository {
     const friend = await this.userModel.findById(friendId)
     if (!friend) throw new Error('없는 유저랍니다.')
 
+    const session = await this.userModel.startSession()
+    session.startTransaction()
+
     await this.userModel.findByIdAndUpdate(
       userId,
       {
@@ -61,11 +66,11 @@ export class CommonRepository {
           },
         },
       },
-      { new: true },
+      { new: true, session },
     )
 
     const newChatRoom = new this.chatRoomModel({ chats: [] })
-    await newChatRoom.save()
+    await newChatRoom.save({ session })
 
     const newFriend: Friend = {
       friend: friend._id,
@@ -82,15 +87,19 @@ export class CommonRepository {
     await this.userModel.findByIdAndUpdate(
       friendId,
       { $push: { friends: newFriendForFriend } },
-      { new: true },
+      { new: true, session },
     )
-
-    return await this.userModel
+    const updatedUser = await this.userModel
       .findByIdAndUpdate(
         userId,
         { $push: { friends: newFriend } },
         { new: true },
       )
       .lean()
+
+    await session.commitTransaction()
+    session.endSession
+    
+    return updatedUser
   }
 }
