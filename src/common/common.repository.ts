@@ -57,49 +57,54 @@ export class CommonRepository {
     const session = await this.userModel.startSession()
     session.startTransaction()
 
-    await this.userModel.findByIdAndUpdate(
-      userId,
-      {
-        $pull: {
-          notifications: {
-            sender: friendId,
+    try {
+      await this.userModel.findByIdAndUpdate(
+        userId,
+        {
+          $pull: {
+            notifications: {
+              sender: friendId,
+            },
           },
         },
-      },
-      { new: true, session },
-    )
-
-    const newChatRoom = new this.chatRoomModel({ chats: [] })
-    await newChatRoom.save({ session })
-
-    const newFriend: Friend = {
-      friend: friend._id,
-      chatRoomId: newChatRoom._id,
-      newMessage: false,
-    }
-
-    const newFriendForFriend: Friend = {
-      friend: userId,
-      chatRoomId: newChatRoom._id,
-      newMessage: false,
-    }
-
-    await this.userModel.findByIdAndUpdate(
-      friendId,
-      { $push: { friends: newFriendForFriend } },
-      { new: true, session },
-    )
-    const updatedUser = await this.userModel
-      .findByIdAndUpdate(
-        userId,
-        { $push: { friends: newFriend } },
-        { new: true },
+        { new: true, session },
       )
-      .lean()
 
-    await session.commitTransaction()
-    session.endSession
-    
-    return updatedUser
+      const newChatRoom = new this.chatRoomModel({ chats: [] })
+      await newChatRoom.save({ session })
+
+      const newFriend: Friend = {
+        friend: friend._id,
+        chatRoomId: newChatRoom._id,
+        newMessage: false,
+      }
+
+      const newFriendForFriend: Friend = {
+        friend: userId,
+        chatRoomId: newChatRoom._id,
+        newMessage: false,
+      }
+
+      await this.userModel.findByIdAndUpdate(
+        friendId,
+        { $push: { friends: newFriendForFriend } },
+        { new: true, session },
+      )
+      const updatedUser = await this.userModel
+        .findByIdAndUpdate(
+          userId,
+          { $push: { friends: newFriend } },
+          { new: true },
+        )
+        .lean()
+
+      await session.commitTransaction()
+      return updatedUser
+    } catch (error) {
+      await session.abortTransaction() // 실패시 rollback
+      throw new Error('친구 추가 실패했어용.')
+    } finally {
+      session.endSession
+    }
   }
 }
