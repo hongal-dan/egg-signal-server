@@ -16,6 +16,7 @@ const logger = new Logger('ChatGateway');
 
 import { CommonService } from './common.service';
 import { lookup } from 'dns';
+import { subscribe } from 'diagnostics_channel';
 
 // @UseGuards(JwtAuthWsGuard)
 @WebSocketGateway({ namespace: 'common' })
@@ -27,7 +28,7 @@ export class CommonGateway implements OnGatewayConnection, OnGatewayDisconnect{
   private connectedUsers: { [userId: string]: string } = {}; // userId: socketId 형태로 변경
   private connectedSockets: { [socketId: string]: string } = {}; // socketId: userId 형태로 변경
 
-  @SubscribeMessage('message')
+  @SubscribeMessage('message1')
   handleMessage(client: any, payload: any): string {
     return 'Hello world!'
   }
@@ -93,12 +94,19 @@ export class CommonGateway implements OnGatewayConnection, OnGatewayDisconnect{
     client.emit('chatHistory', chatHistory);
   }
 
+  @SubscribeMessage('closeChat')
+  async closeChat(
+    @ConnectedSocket() client : Socket,
+    @MessageBody() payload : { chatRoomId : string }) {
+      const { chatRoomId } = payload;
+      client.leave(chatRoomId);
+    }
 
-  @SubscribeMessage('send')
+  @SubscribeMessage('sendMessage')
   async handleSendMessage(
     @ConnectedSocket() client : Socket,
     @MessageBody()
-    payload: { userId: string; chatRoomId: string; message: string; receiverId: string }
+    payload: { userId: string, chatRoomId: string, message: string, receiverId: string }
   ) {
     try {
       const { chatRoomId, message, userId, receiverId } = payload;
