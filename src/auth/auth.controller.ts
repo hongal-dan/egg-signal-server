@@ -80,6 +80,7 @@ export class AuthController {
       const { accessToken, refreshToken } = await this.authService.getJWT(
         Number(req.user.kakaoId),
       )
+      res.setHeader('Authorization', `${accessToken}`)
       res.cookie('access_token', accessToken, { httpOnly: false })
       res.cookie('refreshToken', refreshToken, { httpOnly: true })
       res.cookie('isLoggedIn', true, { httpOnly: false })
