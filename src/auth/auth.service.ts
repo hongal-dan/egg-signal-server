@@ -57,9 +57,15 @@ export class AuthService {
   private async hashPassword(
     createUserDto: CreateUserDto,
   ): Promise<CreateUserDto> {
-    return {
-      ...createUserDto,
-      password: await bcrypt.hash(createUserDto.password, 10),
+    try {
+      return {
+        ...createUserDto,
+        password: await bcrypt.hash(createUserDto.password, 10),
+      }
+    } catch (error) {
+      throw new InternalServerErrorException('Error hashing password')
+    }
+  }
     }
   }
 }
