@@ -74,6 +74,30 @@ export class AuthService {
     }
     return this.jwtService.sign(payload)
   }
+  async generateRefreshToken(user: KakaoUserDocument): Promise<string> {
+    try {
+      const payload = {
+        userId:
+          user._id instanceof Types.ObjectId
+            ? user._id.toHexString()
+            : (user._id as string),
+      }
+
+      const refreshToken = this.jwtService.sign(payload)
+
+      const saltOrRounds = 10
+      const currentRefreshToken = await bcrypt.hash(refreshToken, saltOrRounds)
+
+      await this.authRepository.setCurrentRefreshToken(
+        currentRefreshToken,
+        payload.userId,
+      )
+      console.log('refreshToken = ', refreshToken)
+      return refreshToken
+    } catch (error) {
+      throw new InternalServerErrorException('Error generating refresh token')
+    }
+  }
     }
   }
 }
