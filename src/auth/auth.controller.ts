@@ -1,10 +1,14 @@
 import {
   Body,
   Controller,
+  Get,
+  Header,
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Res,
+  UseGuards,
 } from '@nestjs/common'
 import { AuthService } from './auth.service'
 import { ValidationPipe } from '../validation/validation.pipe'
@@ -41,7 +45,7 @@ export class AuthController {
   ) {
     const { access_token } = await this.authService.signIn(signInUserDto)
     response.setHeader('Authorization', `${access_token}`)
-
+    
 
     return new MessageResponseDto('Sign-in successful')
   }
@@ -49,5 +53,41 @@ export class AuthController {
   @UseGuards(AuthGuard('kakao'))
   async kakaoLogin() {
     // KakaoStrategy로 리다이렉트
+  }
+
+  @Get('kakao/callback')
+  @UseGuards(AuthGuard('kakao'))
+  async kakaoCallback(@Req() req, @Res() res: Response) {
+    try {
+      if (!req.user) {
+        console.log('콜백 에러입니다')
+      }
+      // 유저 조회
+      const user = await this.usersService.findOne(req.user.nickname)
+      if (!user) {
+        // 유저가 없으면 회원가입 처리
+        const newUser = {
+          kakaoId: req.user.kakaoId,
+          provider: 'kakao',
+          id: `kakao_${req.user.kakaoId}`,
+          nickname: req.user.nickname,
+          password: await bcrypt.hash('default_password', 10),
+          gender: 'MALE', // 기본 값 설정
+        }
+        await this.authService.create(newUser)
+      }
+
+      const { accessToken, refreshToken } = await this.authService.getJWT(
+        Number(req.user.kakaoId),
+      )
+      res.cookie('access_token', accessToken, { httpOnly: false })
+      res.cookie('refreshToken', refreshToken, { httpOnly: true })
+      res.cookie('isLoggedIn', true, { httpOnly: false })
+
+      // 클라이언트로 리다이렉션
+      return res.redirect(this.configService.get('CLIENT_URL') + '/main')
+    } catch (error) {
+      console.log('Error during Kakao callback', error)
+    }
   }
 }
