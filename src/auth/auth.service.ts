@@ -66,6 +66,14 @@ export class AuthService {
       throw new InternalServerErrorException('Error hashing password')
     }
   }
+
+  generateAccessToken(user: KakaoUserDocument): string {
+    const payload = {
+      userId:
+        user._id instanceof Types.ObjectId ? user._id.toHexString() : user._id,
+    }
+    return this.jwtService.sign(payload)
+  }
     }
   }
 }
