@@ -11,6 +11,7 @@ import {
 import { UsersService } from './users.service'
 import { JwtAuthRestGuard } from '../guards/jwt-auth.rest.guard'
 import { ResGetUserDto } from './dto/response/get-user.dto'
+
 @UseGuards(JwtAuthRestGuard)
 @Controller('users')
 export class UsersController {
@@ -19,8 +20,8 @@ export class UsersController {
   @Get()
   @HttpCode(HttpStatus.OK)
   async getUser(@Req() request: Request): Promise<ResGetUserDto> {
-    const nickname = request['user'].nickname
-    return this.usersService.findOne(nickname)
+    const userId = request['user'].userId
+    return this.usersService.findOneById(userId)
   }
 
   @Patch()
@@ -29,7 +30,7 @@ export class UsersController {
     @Req() request: Request,
     @Body() avatar: Object,
   ): Promise<Object> {
-    const nickname = request['user'].nickname
-    return this.usersService.patchAvatar(nickname, avatar)
+    const userId = request['user'].userId
+    return this.usersService.patchAvatar(userId, avatar)
   }
 }
