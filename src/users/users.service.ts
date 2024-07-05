@@ -15,6 +15,14 @@ export class UsersService {
     return resGetUserDto
   }
 
+  async findOneById(userId: string): Promise<ResGetUserDto> {
+    const user = await this.usersRepository.findOneById(userId)
+    if (!user) throw new NotFoundException('유저가 없습니다.')
+
+    const resGetUserDto = plainToClass(ResGetUserDto, user)
+    return resGetUserDto
+  }
+
   async patchAvatar(nickname: string, avatar: object): Promise<Object> {
     const updatedUser = await this.usersRepository.updateAvatar(
       nickname,
