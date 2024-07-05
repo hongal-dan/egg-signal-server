@@ -12,10 +12,20 @@ import { CreateUserDto } from './dto/request/create-user.dto'
 import { SignInUserDto } from './dto/request/signin-user.dto'
 import { Response } from 'express'
 import { MessageResponseDto } from '../common_dto/response/message.dto'
+import { AuthGuard } from '@nestjs/passport'
+import { KakaoAuthGuard } from './oauth/auth.guard'
+import { ConfigService } from '@nestjs/config'
+import { KakaoRequest } from '../interfaces/kakao-request.interface'
+import { UsersService } from '../users/users.service'
+import * as bcrypt from 'bcrypt'
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @Post('signUp')
   @HttpCode(HttpStatus.CREATED)
@@ -34,5 +44,10 @@ export class AuthController {
 
 
     return new MessageResponseDto('Sign-in successful')
+  }
+  @Get('kakao')
+  @UseGuards(AuthGuard('kakao'))
+  async kakaoLogin() {
+    // KakaoStrategy로 리다이렉트
   }
 }
