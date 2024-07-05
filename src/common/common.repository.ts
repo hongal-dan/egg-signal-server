@@ -107,24 +107,50 @@ export class CommonRepository {
     }
   }
 
-  async getChatRoomMessage(chatRoomObjectId: Types.ObjectId) {
+  // async getChatRoomMessage(chatRoomObjectId: Types.ObjectId) {
+  //   const chatRoom = await this.chatRoomModel
+  //     .findByIdAndUpdate(
+  //       chatRoomObjectId,
+  //       { $set: { isRead: true } },
+  //       { new: true },
+  //     )
+  //     .lean()
+  //     .exec()
+
+  //   if (chatRoom) {
+  //     return await this.chatRoomModel.populate(chatRoom, {
+  //       path: 'chats',
+  //       model: 'Chat',
+  //       options: { sort: { createAt: 1 } },
+  //       populate: { path: 'sender', select: 'nickname' },
+  //     })
+  //   } else return null
+  // }
+  async getChatRoomMessage(chatRoomObjectId: Types.ObjectId, nickname: string) {
     const chatRoom = await this.chatRoomModel
-      .findByIdAndUpdate(
-        chatRoomObjectId,
-        { $set: { isRead: true } },
-        { new: true },
-      )
+      .findById(chatRoomObjectId)
+      .populate<{ chats: { sender: { nickname: string }; message: string }[] }>({
+        path: 'chats',
+        model: 'Chat',
+        options: { sort : { createdAt : 1 } }, // 오래된 순으로 정렬
+        populate: { path : 'sender', select: 'nickname' },
+      })
       .lean()
       .exec()
 
     if (chatRoom) {
-      return await this.chatRoomModel.populate(chatRoom, {
-        path: 'chats',
-        model: 'Chat',
-        options: { sort: { createAt: 1 } },
-        populate: { path: 'sender', select: 'nickname' },
-      })
-    } else return null
+      const lastChat = chatRoom.chats[chatRoom.chats.length - 1]
+      const myId = nickname
+
+      if (chatRoom.chats.length > 0 && lastChat.sender.nickname !== myId) {
+        await this.chatRoomModel.findByIdAndUpdate(chatRoomObjectId,
+          { $set : {isRead: true}}
+        )
+      }
+      return chatRoom;
+    } else {
+      return null;
+    }
   }
 
   async saveMessagetoChatRoom(

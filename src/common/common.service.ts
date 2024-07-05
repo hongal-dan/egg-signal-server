@@ -40,12 +40,12 @@ export class CommonService {
     this.connectedUsers.delete(socketId)
   }
 
-  async getChatHistory(chatRoomId: string): Promise<Chat[]> {
+  async getChatHistory(chatRoomId: string, nickname: string): Promise<Chat[]> {
     // 1. ChatRoom ObjectId로 변환
     const chatRoomIdObj = new Types.ObjectId(chatRoomId)
 
     const chatRoom =
-      await this.commonRepository.getChatRoomMessage(chatRoomIdObj)
+      await this.commonRepository.getChatRoomMessage(chatRoomIdObj, nickname)
     console.log('chatroom populate result: ', chatRoom.chats)
     return chatRoom.chats as unknown as Chat[]
   }

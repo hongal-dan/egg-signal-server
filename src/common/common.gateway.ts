@@ -85,8 +85,7 @@ export class CommonGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       client.emit('friendStat', friendStat)
     } catch (error) {
-      logger.error('친구 상태 정보 조회 실패', error)
-      client.disconnect()
+      logger.error('친구 상태 정보 조회 실패', error);
     }
   }
 
@@ -122,6 +121,7 @@ export class CommonGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const { newChatRoomId } = payload
     const chatRoomId = newChatRoomId
+    const { nickname } = client['user'];
     // 1. 기존 채팅방 정보 가져오기
 
     const currentRooms = Array.from(client.rooms) // 현재 참여 중인 모든 방
@@ -135,7 +135,7 @@ export class CommonGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.join(chatRoomId)
 
     // 4. 채팅 기록 불러오기 (필요하다면)
-    const chatHistory = await this.commonService.getChatHistory(chatRoomId)
+    const chatHistory = await this.commonService.getChatHistory(chatRoomId, nickname)
     client.emit('chatHistory', chatHistory)
   }
 
