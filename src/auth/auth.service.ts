@@ -108,6 +108,26 @@ export class AuthService {
       throw new InternalServerErrorException('Error getting JWT')
     }
   }
+  async kakaoValidateUser(kakaoId: number): Promise<KakaoUserDocument> {
+    try {
+      let user: KakaoUserDocument = (await this.authRepository.findOne({
+        kakaoId,
+      })) as KakaoUserDocument // 유저 조회
+      if (!user) {
+        // 회원 가입 로직
+        const defaultUserData = {
+          kakaoId,
+          provider: 'kakao',
+          id: `kakao_${kakaoId}`,
+          nickname: `kakao_user_${kakaoId}`,
+          password: await bcrypt.hash('default_password', 10),
+          gender: 'MALE', // 기본 값 설정
+        }
+        user = await this.authRepository.createKakaoUser(defaultUserData)
+      }
+      return user
+    } catch (error) {
+      throw new InternalServerErrorException('Error validating Kakao user')
     }
   }
 }
