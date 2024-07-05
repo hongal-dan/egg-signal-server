@@ -18,4 +18,15 @@ export class AuthRepository {
   findOne(filter: object) {
     return this.userModel.findOne(filter)
   }
+  async setCurrentRefreshToken(
+    refreshToken: string,
+    userId: string,
+  ): Promise<void> {
+    await this.userModel.updateOne({ _id: userId }, { refreshToken })
+  }
+
+  async createKakaoUser(userData: Partial<User>) {
+    const newUser = new this.userModel(userData)
+    return newUser.save()
+  }
 }
