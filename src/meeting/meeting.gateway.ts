@@ -10,6 +10,7 @@ import { UseGuards } from '@nestjs/common'
 import { Server, Socket } from 'socket.io'
 import { OpenViduService } from './services/meeting.service'
 import { QueueService } from './services/queue.service'
+import { ConfigService } from '@nestjs/config'
 import { JwtAuthWsGuard } from '../guards/jwt-auth.ws.guard'
 
 @UseGuards(JwtAuthWsGuard)
@@ -31,10 +32,14 @@ export class MeetingGateway
 {
   @WebSocketServer() server: Server
   private roomid: Map<string, string> = new Map()
+  private isDevelopment: boolean
   constructor(
     private readonly openviduService: OpenViduService,
     private readonly queueService: QueueService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.isDevelopment = this.configService.get<string>('NODE_ENV') === 'dev'
+  }
   private connectedUsers: { [nickname: string]: string } = {} // nickname: socketId 형태로 변경
   private connectedSockets: { [socketId: string]: string } = {} // socketId: nickname 형태로 변경
   private cupidFlag: Map<string, boolean> = new Map()
@@ -48,6 +53,11 @@ export class MeetingGateway
   handleDisconnect(client: Socket) {
     const sessions = this.openviduService.getSessions()
     const participantName = this.connectedSockets[client.id]
+    if (!sessions.length) {
+      const gender = client['user'].gender
+      this.queueService.removeParticipant(participantName, gender)
+    }
+
     for (const sessionName in sessions) {
       if (sessions.hasOwnProperty(sessionName)) {
         this.openviduService.removeParticipant(
@@ -68,7 +78,17 @@ export class MeetingGateway
     payload: { participantName: string; gender: string },
   ) {
     try {
-      const { participantName, gender } = payload
+      let participantName
+      let gender
+      if (this.isDevelopment) {
+        participantName = client['user'].nickname
+        gender = client['user'].gender
+      } else {
+        participantName = payload.participantName
+        gender = payload.gender
+      }
+      // const participantName = client['user'].nickname
+      // const gender = client['user'].gender
 
       const existingSessionName = this.roomid.get(participantName)
       if (existingSessionName) {
@@ -98,12 +118,17 @@ export class MeetingGateway
   }
 
   @SubscribeMessage('cancel')
-  handleCancel(
-    client: Socket,
-    payload: { participantName: string; gender: string },
-  ) {
+  handleCancel(client: Socket, payload: { userName: string; gender: string }) {
     const sessions = this.openviduService.getSessions()
-    const { participantName, gender } = payload
+    let participantName
+    let gender
+    if (this.isDevelopment) {
+      participantName = client['user'].nickname
+      gender = client['user'].gender
+    } else {
+      participantName = payload.userName
+      gender = payload.gender
+    }
 
     this.queueService.removeParticipant(participantName, gender)
 
