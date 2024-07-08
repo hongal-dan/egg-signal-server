@@ -89,6 +89,7 @@ export class MeetingService {
       )
       if (this.sessions[sessionName].participants.length === 0) {
         this.clearSessionData(sessionName)
+        clearTimeout(this.sessionTimers[sessionName])
       }
     } else {
       console.error(`Session ${sessionName} does not exist`)
