@@ -1,11 +1,14 @@
+// src/meeting/services/queue.service.ts
 import { Injectable } from '@nestjs/common'
 import { Socket } from 'socket.io'
 import { MeetingService } from './meeting.service'
 import { CommonService } from '../../common/common.service'
-import * as NodeCache from 'node-cache'
+import { Worker } from 'worker_threads'
+import * as redis from 'redis' // redis 클라이언트 사용
 import { performance } from 'perf_hooks'
+import { buildFriendsMap, findMatchingGroups, getFriends } from './utils' // 유틸리티 함수들 경로 수정 필요
 
-class BipartiteGraph {
+export class BipartiteGraph {
   private maleEdges: Map<string, Set<string>> = new Map()
   private femaleEdges: Map<string, Set<string>> = new Map()
 
@@ -42,12 +45,14 @@ class BipartiteGraph {
 export class QueueService {
   private maleQueue: { name: string; socket: Socket }[] = []
   private femaleQueue: { name: string; socket: Socket }[] = []
-  private friendCache = new NodeCache({ stdTTL: 600 })
+  private redisClient = redis.createClient() // Redis 클라이언트 생성
 
   constructor(
     private readonly meetingService: MeetingService,
     private readonly commonService: CommonService,
-  ) {}
+  ) {
+    this.redisClient.connect() // Redis 클라이언트 연결
+  }
 
   async addParticipant(name: string, socket: Socket, gender: string) {
     const start = performance.now()
@@ -102,7 +107,11 @@ export class QueueService {
 
       const result = await this.filterQueues()
       if (result) {
-        const { sessionId, readyMales, readyFemales } = result
+        const { sessionId, readyMales, readyFemales } = result as {
+          sessionId: string
+          readyMales: any[]
+          readyFemales: any[]
+        }
         const end = performance.now()
         console.log(`handleJoinQueue 실행 시간: ${(end - start).toFixed(2)}ms`)
         return { sessionId, readyMales, readyFemales }
@@ -127,71 +136,82 @@ export class QueueService {
     const start = performance.now()
     if (this.maleQueue.length >= 3 && this.femaleQueue.length >= 3) {
       console.log('Attempting to filter queues for matching...')
-      const [maleFriendsMap, femaleFriendsMap] = await Promise.all([
-        this.buildFriendsMap(this.maleQueue),
-        this.buildFriendsMap(this.femaleQueue),
-      ])
 
-      const graph = new BipartiteGraph()
-      for (const male of this.maleQueue) {
-        for (const female of this.femaleQueue) {
-          if (
-            !maleFriendsMap.get(male.name).has(female.name) &&
-            !femaleFriendsMap.get(female.name).has(male.name)
-          ) {
-            graph.addEdge(male.name, female.name)
+      // 워커를 생성하고 작업을 위임
+      const worker = new Worker('./src/meeting/services/filterQueueWorker.js', {
+        workerData: {
+          maleQueue: this.maleQueue.map(p => ({
+            name: p.name,
+            socketId: p.socket.id,
+          })),
+          femaleQueue: this.femaleQueue.map(p => ({
+            name: p.name,
+            socketId: p.socket.id,
+          })),
+        },
+      })
+
+      return new Promise((resolve, reject) => {
+        worker.on('message', async result => {
+          if (result) {
+            const { males, females } = result
+
+            const sessionId = await this.findOrCreateNewSession()
+
+            await Promise.all([
+              ...males.map(male =>
+                this.meetingService.addParticipant(
+                  sessionId,
+                  male.name,
+                  this.maleQueue.find(p => p.name === male.name).socket,
+                ),
+              ),
+              ...females.map(female =>
+                this.meetingService.addParticipant(
+                  sessionId,
+                  female.name,
+                  this.femaleQueue.find(p => p.name === female.name).socket,
+                ),
+              ),
+            ])
+
+            console.log('현재 큐 시작진입합니다 세션 이름은: ', sessionId)
+            await this.meetingService.startVideoChatSession(sessionId)
+
+            this.maleQueue = this.maleQueue.filter(
+              m => !males.map(male => male.name).includes(m.name),
+            )
+            this.femaleQueue = this.femaleQueue.filter(
+              f => !females.map(female => female.name).includes(f.name),
+            )
+
+            const end = performance.now()
+            console.log(`filterQueues 실행 시간: ${(end - start).toFixed(2)}ms`)
+            resolve({
+              sessionId,
+              readyMales: males,
+              readyFemales: females,
+            })
+          } else {
+            console.log('Not enough matched participants to start a session.')
+            const end = performance.now()
+            console.log(`filterQueues 실행 시간: ${(end - start).toFixed(2)}ms`)
+            resolve(null)
           }
-        }
-      }
+        })
 
-      const result = this.findMatchingGroups(
-        graph,
-        maleFriendsMap,
-        femaleFriendsMap,
-      )
+        worker.on('error', error => {
+          console.error('Worker error:', error)
+          reject(error)
+        })
 
-      if (result) {
-        const { males, females } = result
-
-        const sessionId = await this.findOrCreateNewSession()
-
-        await Promise.all([
-          ...males.map(male =>
-            this.meetingService.addParticipant(
-              sessionId,
-              male.name,
-              male.socket,
-            ),
-          ),
-          ...females.map(female =>
-            this.meetingService.addParticipant(
-              sessionId,
-              female.name,
-              female.socket,
-            ),
-          ),
-        ])
-
-        console.log('현재 큐 시작진입합니다 세션 이름은: ', sessionId)
-        await this.meetingService.startVideoChatSession(sessionId)
-
-        this.maleQueue = this.maleQueue.filter(
-          m => !males.map(male => male.name).includes(m.name),
-        )
-        this.femaleQueue = this.femaleQueue.filter(
-          f => !females.map(female => female.name).includes(f.name),
-        )
-
-        const end = performance.now()
-        console.log(`filterQueues 실행 시간: ${(end - start).toFixed(2)}ms`)
-        return {
-          sessionId,
-          readyMales: males,
-          readyFemales: females,
-        }
-      }
-
-      console.log('Not enough matched participants to start a session.')
+        worker.on('exit', code => {
+          if (code !== 0) {
+            console.error(`Worker stopped with exit code ${code}`)
+            reject(new Error(`Worker stopped with exit code ${code}`))
+          }
+        })
+      })
     } else {
       console.log('Not enough participants in both queues to start matching.')
     }
@@ -217,20 +237,20 @@ export class QueueService {
 
   private async getFriends(name: string): Promise<string[]> {
     const start = performance.now()
-    const cachedFriends = this.friendCache.get<string[]>(name)
+    const cachedFriends = await this.redisClient.get(name)
     if (cachedFriends) {
       console.log(`Cache hit for friends of ${name}`)
       const end = performance.now()
       console.log(
         `getFriends (cache hit) 실행 시간: ${(end - start).toFixed(2)}ms`,
       )
-      return cachedFriends
+      return JSON.parse(cachedFriends)
     }
     console.log(
       `Cache miss for friends of ${name}, fetching from commonService`,
     )
     const friends = await this.commonService.sortFriend(name)
-    this.friendCache.set(name, friends)
+    await this.redisClient.set(name, JSON.stringify(friends))
     const end = performance.now()
     console.log(
       `getFriends (cache miss) 실행 시간: ${(end - start).toFixed(2)}ms`,
@@ -320,7 +340,6 @@ export class QueueService {
     for (const male of males) {
       const neighbors = graph.getMaleNeighbors(male)
       const maleFriends = maleFriendsMap.get(male) || new Set()
-
       for (const female of females) {
         if (!neighbors.has(female) || maleFriends.has(female)) {
           const end = performance.now()
@@ -333,7 +352,6 @@ export class QueueService {
     for (const female of females) {
       const neighbors = graph.getFemaleNeighbors(female)
       const femaleFriends = femaleFriendsMap.get(female) || new Set()
-
       for (const male of males) {
         if (!neighbors.has(male) || femaleFriends.has(male)) {
           const end = performance.now()
