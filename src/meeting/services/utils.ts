@@ -28,6 +28,7 @@ export function findMatchingGroups(
   const femaleCombos = getCombinations(females, 3)
 
   for (const maleGroup of maleCombos) {
+    console.log('test!!!')
     for (const femaleGroup of femaleCombos) {
       if (
         isGroupValid(
@@ -38,6 +39,10 @@ export function findMatchingGroups(
           femaleFriendsMap,
         )
       ) {
+        console.log('유효한 그룹 발견:', {
+          males: maleGroup,
+          females: femaleGroup,
+        })
         return {
           males: maleGroup,
           females: femaleGroup,
@@ -45,6 +50,7 @@ export function findMatchingGroups(
       }
     }
   }
+  console.log('유효한 그룹을 찾지 못했습니다.')
   return null
 }
 
@@ -79,23 +85,34 @@ function isGroupValid(
   maleFriendsMap: Map<string, Set<string>>,
   femaleFriendsMap: Map<string, Set<string>>,
 ): boolean {
+  console.log('잘 들어오니??')
   for (const male of males) {
+    console.log('잘 들어오니222222??')
     const neighbors = graph.getMaleNeighbors(male)
+    console.log('잘 들어오니33333??', neighbors)
     const maleFriends = maleFriendsMap.get(male) || new Set()
+    console.log('잘 들어오니4444444??', maleFriends)
     for (const female of females) {
+      console.log('남성:', male, '여성:', female)
       if (!neighbors.has(female) || maleFriends.has(female)) {
+        console.log('유효하지 않은 조합:', {
+          male,
+          female,
+        })
         return false
       }
     }
   }
-  for (const female of females) {
-    const neighbors = graph.getFemaleNeighbors(female)
-    const femaleFriends = femaleFriendsMap.get(female) || new Set()
-    for (const male of males) {
-      if (!neighbors.has(male) || femaleFriends.has(male)) {
-        return false
-      }
-    }
-  }
+  // for (const female of females) {
+  //   const neighbors = graph.getFemaleNeighbors(female)
+  //   const femaleFriends = femaleFriendsMap.get(female) || new Set()
+  //   for (const male of males) {
+  //     console.log('테스트 1번의 내용.', male)
+  //     if (!neighbors.has(male) || femaleFriends.has(male)) {
+  //       console.log('테스트 1번입니다.')
+  //       return false
+  //     }
+  //   }
+  // }
   return true
 }

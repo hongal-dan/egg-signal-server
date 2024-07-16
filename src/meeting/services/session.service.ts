@@ -22,58 +22,88 @@ export class SessionService {
     this.openVidu = new OpenVidu(OPENVIDU_URL, OPENVIDU_SECRET)
   }
 
-  generateSessionId() {
+  generateSessionId(): string {
     return uuidv4()
   }
 
   async createSession(sessionId: string): Promise<Session> {
-    if (!this.sessions[sessionId]) {
-      const session = await this.openVidu.createSession({
-        customSessionId: sessionId,
-      })
-      this.sessions[sessionId] = { session, participants: [] }
-      return session
-    } else {
-      return this.sessions[sessionId].session
+    try {
+      if (!this.sessions[sessionId]) {
+        const session = await this.openVidu.createSession({
+          customSessionId: sessionId,
+        })
+        this.sessions[sessionId] = { session, participants: [] }
+        return session
+      } else {
+        return this.sessions[sessionId].session
+      }
+    } catch (error) {
+      console.error(`Error creating session ${sessionId}:`, error)
+      throw error // 예외를 호출하는 쪽으로 다시 던짐
     }
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    if (this.sessions[sessionId]) {
-      delete this.sessions[sessionId]
+    try {
+      if (this.sessions[sessionId]) {
+        await this.sessions[sessionId].session.close()
+        delete this.sessions[sessionId]
+      }
+    } catch (error) {
+      console.error(`Error deleting session ${sessionId}:`, error)
+      throw error // 예외를 호출하는 쪽으로 다시 던짐
     }
   }
 
-  getSession(sessionId: string) {
+  getSession(sessionId: string): Session | undefined {
     return this.sessions[sessionId]?.session
   }
 
-  getSessions() {
+  getSessions(): Record<string, any> {
     return this.sessions
   }
 
-  addParticipant(sessionId: string, participantName: string, socketId: string) {
-    if (this.sessions[sessionId]) {
-      this.sessions[sessionId].participants.push({
-        name: participantName,
-        socketId: socketId,
-      })
-    } else {
-      console.error(`Session ${sessionId} does not exist`)
+  addParticipant(
+    sessionId: string,
+    participantName: string,
+    socketId: string,
+  ): void {
+    try {
+      if (this.sessions[sessionId]) {
+        this.sessions[sessionId].participants.push({
+          name: participantName,
+          socketId: socketId,
+        })
+      } else {
+        console.error(`Session ${sessionId} does not exist`)
+        throw new Error(`Session ${sessionId} does not exist`)
+      }
+    } catch (error) {
+      console.error(`Error adding participant to session ${sessionId}:`, error)
+      throw error // 예외를 호출하는 쪽으로 다시 던짐
     }
   }
 
-  removeParticipant(sessionId: string, myId: string) {
-    if (this.sessions[sessionId]) {
-      this.sessions[sessionId].participants = this.sessions[
-        sessionId
-      ].participants.filter(p => p.name !== myId)
-    } else {
-      console.error(`Session ${sessionId} does not exist`)
+  removeParticipant(sessionId: string, participantName: string): void {
+    try {
+      if (this.sessions[sessionId]) {
+        this.sessions[sessionId].participants = this.sessions[
+          sessionId
+        ].participants.filter(p => p.name !== participantName)
+      } else {
+        console.error(`Session ${sessionId} does not exist`)
+        throw new Error(`Session ${sessionId} does not exist`)
+      }
+    } catch (error) {
+      console.error(
+        `Error removing participant from session ${sessionId}:`,
+        error,
+      )
+      throw error // 예외를 호출하는 쪽으로 다시 던짐
     }
   }
 
-  getParticipants(sessionId: string) {
+  getParticipants(sessionId: string): { name: string; socketId: string }[] {
     return this.sessions[sessionId]?.participants || []
   }
 }

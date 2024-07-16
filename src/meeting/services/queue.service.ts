@@ -1,14 +1,12 @@
 import { Injectable, Inject } from '@nestjs/common'
 import { Socket } from 'socket.io'
-import { MeetingService } from './meeting.service'
 import Redis from 'ioredis'
 import { CommonService } from '../../common/common.service'
 import { SessionService } from './session.service'
 import { Worker } from 'worker_threads'
-import * as redis from 'redis' // redis 클라이언트 사용
 import { performance } from 'perf_hooks'
-import { buildFriendsMap, findMatchingGroups, getFriends } from './utils' // 유틸리티 함수들 경로 수정 필요
-
+import * as path from 'path'
+import { buildFriendsMap, findMatchingGroups } from './utils'
 export class BipartiteGraph {
   private maleEdges: Map<string, Set<string>> = new Map()
   private femaleEdges: Map<string, Set<string>> = new Map()
@@ -46,23 +44,23 @@ export class BipartiteGraph {
 export class QueueService {
   private redis: Redis
   public userQueueCount = 3
+
   constructor(
-    private readonly meetingService: MeetingService,
-    private readonly sessionService: SessionService,
     private readonly commonService: CommonService,
+    private readonly sessionService: SessionService,
     @Inject('REDIS') redis: Redis,
   ) {
     this.redis = redis
   }
 
-  /* 참여자 대기열 추가 */
   async addParticipant(name: string, socket: Socket, gender: string) {
+    const start = performance.now()
     const participant = JSON.stringify({ name, socketId: socket.id })
     const genderQueue = gender === 'MALE' ? 'maleQueue' : 'femaleQueue'
 
     const queue = await this.redis.lrange(genderQueue, 0, -1)
 
-    /**중복 유저 제거과정 최적화 필요 */
+    // 중복 유저 제거과정 최적화 필요
     for (const item of queue) {
       const parsedItem = JSON.parse(item)
       if (parsedItem.name === name) {
@@ -142,7 +140,7 @@ export class QueueService {
 
         const readyUsers = [...readyMales, ...readyFemales]
         for (const user of readyUsers) {
-          this.sessionService.addParticipant(
+          await this.sessionService.addParticipant(
             sessionId,
             user.name,
             user.socketId,
@@ -152,8 +150,9 @@ export class QueueService {
         await this.redis.ltrim('maleQueue', this.userQueueCount, -1)
         await this.redis.ltrim('femaleQueue', this.userQueueCount, -1)
 
-        console.log('현재 큐 시작진입합니다 세션 이름은 : ', sessionId)
-        await this.meetingService.startVideoChatSession(sessionId)
+        console.log('현재 큐 시작 진입합니다222. 세션 이름은: ', sessionId)
+        // await this.meetingService.startVideoChatSession(sessionId); // meetingService와 관련된 코드는 주석 처리
+
         return { sessionId, readyUsers }
       }
 
@@ -161,124 +160,97 @@ export class QueueService {
     } catch (error) {
       console.error('Error joining queue:', error)
       await this.sessionService.deleteSession(sessionId)
+      throw error // 에러를 상위로 다시 throw하여 처리 가능하도록 함
     }
   }
 
-  async filterQueues() {
-    // 매칭 가능성 확인
-    if (this.maleQueue.length >= 3 && this.femaleQueue.length >= 3) {
-      for (let i = 0; i < this.maleQueue.length; i++) {
-        const male = this.maleQueue[i]
-        const maleFriends = await this.commonRepository.getFriendNicknames(
-          male.name,
-        )
-        const potentialFemales = this.femaleQueue.filter(
-          female => !maleFriends.includes(female.name),
-        )
-
-        if (potentialFemales.length >= 3) {
-          const readyMales = [male]
-          const readyFemales = potentialFemales.slice(0, 3)
-          const remainingMales = this.maleQueue.filter(
-            m => m.name !== male.name,
-          )
-          const remainingFemales = this.femaleQueue.filter(
-            f => !readyFemales.includes(f),
-          )
-
-          // 남은 남성 큐에서 추가로 2명 선택
-          const additionalMales = remainingMales.slice(0, 2)
-          readyMales.push(...additionalMales)
-          this.maleQueue = remainingMales.slice(2)
-          this.femaleQueue = remainingFemales
-
-          const sessionId = await this.findOrCreateNewSession()
-
-          readyMales.forEach(male => {
-            this.meetingService.addParticipant(
-              sessionId,
-              male.name,
-              male.socket,
-            )
-          })
-
-          readyFemales.forEach(female => {
-            this.meetingService.addParticipant(
-              sessionId,
-              female.name,
-              female.socket,
-            )
-          })
-
-          console.log('현재 큐 시작진입합니다 세션 이름은 : ', sessionId)
-          await this.meetingService.startVideoChatSession(sessionId)
-
-          return { sessionId, readyMales, readyFemales }
-        } else {
-          return
-        }
-      }
-    }
-    return null
-  }
-
-  private getCombinations(arr: string[], size: number): string[][] {
+  async filterQueues(): Promise<{
+    sessionId?: string
+    readyMales?: any[]
+    readyFemales?: any[]
+  } | null> {
     const start = performance.now()
-    const result: string[][] = []
-    const combine = (start: number, chosen: string[]) => {
-      if (chosen.length === size) {
-        result.push([...chosen])
-        return
-      }
-      for (let i = start; i < arr.length; i++) {
-        chosen.push(arr[i])
-        combine(i + 1, chosen)
-        chosen.pop()
-      }
-    }
-    combine(0, [])
-    const end = performance.now()
-    console.log(`getCombinations 실행 시간: ${(end - start).toFixed(2)}ms`)
-    return result
-  }
+    const maleQueue = await this.redis.lrange('maleQueue', 0, -1)
+    const femaleQueue = await this.redis.lrange('femaleQueue', 0, -1)
 
-  private isGroupValid(
-    males: string[],
-    females: string[],
-    graph: BipartiteGraph,
-    maleFriendsMap: Map<string, Set<string>>,
-    femaleFriendsMap: Map<string, Set<string>>,
-  ): boolean {
-    const start = performance.now()
-    const allMales = new Set(males)
-    const allFemales = new Set(females)
+    if (maleQueue.length >= 3 && femaleQueue.length >= 3) {
+      // 워커를 생성하고 작업을 위임
+      console.log('진짜 들어오는거니??')
+      const workerPath = path.join(
+        __dirname,
+        '../../../dist/meeting/services/filterQueueWorker.js',
+      )
+      const worker = new Worker(workerPath, {
+        workerData: {
+          maleQueue: maleQueue.map(item => JSON.parse(item)),
+          femaleQueue: femaleQueue.map(item => JSON.parse(item)),
+        },
+      })
 
-    for (const male of males) {
-      const neighbors = graph.getMaleNeighbors(male)
-      const maleFriends = maleFriendsMap.get(male) || new Set()
-      for (const female of females) {
-        if (!neighbors.has(female) || maleFriends.has(female)) {
+      return new Promise((resolve, reject) => {
+        worker.on('message', async result => {
           const end = performance.now()
-          console.log(`isGroupValid 실행 시간: ${(end - start).toFixed(2)}ms`)
-          return false
-        }
-      }
-    }
+          console.log(`filterQueues 실행 시간: ${(end - start).toFixed(2)}ms`)
+          if (result) {
+            const { males, females } = result
 
-    for (const female of females) {
-      const neighbors = graph.getFemaleNeighbors(female)
-      const femaleFriends = femaleFriendsMap.get(female) || new Set()
-      for (const male of males) {
-        if (!neighbors.has(male) || femaleFriends.has(male)) {
+            const sessionId = await this.findOrCreateNewSession()
+
+            await Promise.all([
+              ...males.map(male =>
+                this.sessionService.addParticipant(
+                  sessionId,
+                  male.name,
+                  male.socketId,
+                ),
+              ),
+              ...females.map(female =>
+                this.sessionService.addParticipant(
+                  sessionId,
+                  female.name,
+                  female.socketId,
+                ),
+              ),
+            ])
+
+            console.log('현재 큐 시작 진입합니다. 세션 이름은: ', sessionId)
+            // await this.meetingService.startVideoChatSession(sessionId); // meetingService와 관련된 코드는 주석 처리
+
+            await this.redis.ltrim('maleQueue', 3, -1)
+            await this.redis.ltrim('femaleQueue', 3, -1)
+
+            resolve({
+              sessionId,
+              readyMales: males,
+              readyFemales: females,
+            })
+          } else {
+            console.log(
+              '충분한 매칭된 참여자가 없어 세션을 시작할 수 없습니다.',
+            )
+            resolve(null)
+          }
+        })
+
+        worker.on('error', error => {
+          console.error('Worker error:', error)
+          reject(error)
+        })
+
+        worker.on('exit', code => {
           const end = performance.now()
-          console.log(`isGroupValid 실행 시간: ${(end - start).toFixed(2)}ms`)
-          return false
-        }
-      }
+          console.log(`filterQueues 실행 시간: ${(end - start).toFixed(2)}ms`)
+          if (code !== 0) {
+            console.error(`Worker가 종료 코드 ${code}와 함께 멈추었습니다.`)
+            reject(new Error(`Worker가 종료 코드 ${code}와 함께 멈추었습니다.`))
+          }
+        })
+      })
+    } else {
+      console.log('두 큐 모두 충분한 참여자가 없어 매칭을 시작할 수 없습니다.')
+      const end = performance.now()
+      console.log(`filterQueues 실행 시간: ${(end - start).toFixed(2)}ms`)
+      return null
     }
-
-    const end = performance.now()
-    console.log(`isGroupValid 실행 시간: ${(end - start).toFixed(2)}ms`)
-    return true
   }
 }
